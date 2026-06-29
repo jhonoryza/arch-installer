@@ -1,0 +1,37 @@
+# Dependencies / package managers
+node_modules/
+vendor/
+
+# Build artifacts
+*.iso
+*.img
+*.tar*
+*.pkg.tar*
+*.zst
+*.xz
+
+# Pacman
+var/cache/pacman/pkg/
+var/lib/pacman/
+
+# Installer temp (re-run safety)
+install.log
+
+# AUR / source build leftovers
+aur/
+build/
+src/
+pkg/
+
+# Mount / chroot staging
+mnt/
+
+# OS / editor junk
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# OCode / misc tooling
+.opencode/
