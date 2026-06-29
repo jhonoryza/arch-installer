@@ -30,23 +30,22 @@ checks() {
 select_disk() {
   echo
   warn "Available disks on this system:"
-  lsblk -d -o NAME,SIZE,TYPE,MODEL | grep -E "disk|TYPE" | grep -v "loop"
+  # List only whole disks, skip loop devices
+  lsblk -d -o NAME,SIZE,TYPE | awk 'NR==1 || $2=="disk"'
   echo
   read -rp "Enter target disk (default: $DISK): " INPUT
   DISK="${INPUT:-$DISK}"
-  # Strip trailing slash if any
   DISK="${DISK%/}"
-  # Validate
   if [[ ! -b "$DISK" ]]; then
     die "Disk $DISK does not exist or is not a block device"
   fi
-  if ! lsblk -d -o NAME,TYPE | grep -q "^$(basename "$DISK").*disk"; then
-    die "$DISK is not a whole disk device"
-  fi
+  # Get size
   SIZE=$(lsblk -d -o SIZE "$DISK" | tail -1)
   warn "Target disk: $DISK ($SIZE)"
-  read -rp "All data on $DISK will be ERASED. Continue? [y/N] " CONFIRM
-  [[ "$CONFIRM" =~ ^[Yy]$ ]] || die "Aborted by user"
+  echo
+  warn "WARNING: All data on $DISK will be PERMANENTLY ERASED!"
+  read -rp "Type 'YES' to confirm: " CONFIRM
+  [[ "$CONFIRM" == "YES" ]] || die "Aborted by user"
   export DISK
 }
 
@@ -321,6 +320,7 @@ cleanup() {
 
 main() {
   checks
+  select_disk
   partition_disk
   mount_system
   pacstrap_base
