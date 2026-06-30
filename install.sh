@@ -311,24 +311,45 @@ titlebar-font=Ubuntu Bold 10
 button-layout=close,minimize,maximize:
 MARCO
 
-# Set via gsettings as well (overrides the file)
-gsettings set org.mate.Marco.general theme Ambiance 2>/dev/null || true
-gsettings set org.mate.Marco.general titlebar-font "Ubuntu Bold 10" 2>/dev/null || true
-gsettings set org.mate.Marco.general button-layout "close,minimize,maximize:" 2>/dev/null || true
+# MATE theme via dbus-run-session (works in chroot with temporary D-Bus)
+# GTK config files already set above — these configure MATE-specific schemas
+dbus-run-session bash -c '
+  # Interface theme (Ambiance + Humanity + Ubuntu font)
+  gsettings set org.mate.interface gtk-theme "Ambiance"
+  gsettings set org.mate.interface icon-theme "Humanity"
+  gsettings set org.mate.interface cursor-theme "Vanilla-DMZ"
+  gsettings set org.mate.interface font-name "Ubuntu 10"
 
-# Desktop background — solid orange-brown like Ubuntu 10.10
-gsettings set org.mate.background picture-filename "" 2>/dev/null || true
-gsettings set org.mate.background primary-color "#48170E" 2>/dev/null || true
-gsettings set org.mate.background color-shading-type "solid" 2>/dev/null || true
+  # Marco window decorations: Ambiance, buttons left (Ubuntu style)
+  gsettings set org.mate.Marco.general theme "Ambiance"
+  gsettings set org.mate.Marco.general titlebar-font "Ubuntu Bold 10"
+  gsettings set org.mate.Marco.general button-layout "close,minimize,maximize:"
+  gsettings set org.mate.Marco.general compositing-manager false
 
-# Cursor theme system-wide
-gsettings set org.mate.peripherals-mouse cursor-theme "Vanilla-DMZ" 2>/dev/null || true
+  # Desktop background — solid aubergine (#300A24 = Ubuntu 10.10 purple)
+  gsettings set org.mate.background picture-filename ""
+  gsettings set org.mate.background primary-color "#300A24"
+  gsettings set org.mate.background secondary-color "#300A24"
+  gsettings set org.mate.background color-shading-type "solid"
 
-# MATE panel — Ubuntu 10.10 layout:
-#   top panel: menu + clock
-#   bottom panel: window list + workspace switcher
-gsettings set org.mate.panel default-layout true 2>/dev/null || true
-gsettings set org.mate.Marco.general compositing-manager false 2>/dev/null || true
+  # Cursor (global)
+  gsettings set org.mate.peripherals-mouse cursor-theme "Vanilla-DMZ"
+
+  # Panel: default two-panel layout (top + bottom, Ubuntu-style)
+  gsettings set org.mate.panel default-layout true
+
+  # === MATE Terminal: white text on aubergine (NOT green!) ===
+  TERM_PROF=$(gsettings get org.mate.terminal.global default-profile 2>/dev/null)
+  TERM_PROF=$(echo "$TERM_PROF" | tr -dc "[:alnum:]_-")
+  if [ -n "$TERM_PROF" ]; then
+    gsettings set "org.mate.terminal.profile:/org/mate/terminal/profiles/$TERM_PROF/" \
+      background-color "#300A24"
+    gsettings set "org.mate.terminal.profile:/org/mate/terminal/profiles/$TERM_PROF/" \
+      foreground-color "#FFFFFF"
+    gsettings set "org.mate.terminal.profile:/org/mate/terminal/profiles/$TERM_PROF/" \
+      use-theme-colors false
+  fi
+' 2>/dev/null || true
 
 echo "=== Theme configured ==="
 USERCFG
