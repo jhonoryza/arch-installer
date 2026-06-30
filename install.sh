@@ -358,32 +358,32 @@ if [ "$INSTALL_SWAY" -eq 1 ]; then
     cp /etc/sway/config /home/mateuser/.config/sway/config
   else
     cat > /home/mateuser/.config/sway/config << 'SWAYCFG'
-set $mod Mod4
+set \$mod Mod4
 font pango:monospace 10
-set $term foot
-bindsym $mod+Return exec $term
-bindsym $mod+q kill
-bindsym $mod+d exec wofi --show drun
-bindsym $mod+r exec wofi --show run
-bindsym $mod+v floating toggle
-bindsym $mod+f fullscreen
-bindsym $mod+Shift+e exit
-bindsym $mod+1 workspace number 1
-bindsym $mod+2 workspace number 2
-bindsym $mod+3 workspace number 3
-bindsym $mod+4 workspace number 4
-bindsym $mod+Shift+1 move container to workspace number 1
-bindsym $mod+Shift+2 move container to workspace number 2
-bindsym $mod+Shift+3 move container to workspace number 3
-bindsym $mod+Shift+4 move container to workspace number 4
-bindsym $mod+h focus left
-bindsym $mod+j focus down
-bindsym $mod+k focus up
-bindsym $mod+l focus right
-bindsym $mod+Shift+h move left
-bindsym $mod+Shift+j move down
-bindsym $mod+Shift+k move up
-bindsym $mod+Shift+l move right
+set \$term foot
+bindsym \$mod+Return exec \$term
+bindsym \$mod+q kill
+bindsym \$mod+d exec wofi --show drun
+bindsym \$mod+r exec wofi --show run
+bindsym \$mod+v floating toggle
+bindsym \$mod+f fullscreen
+bindsym \$mod+Shift+e exit
+bindsym \$mod+1 workspace number 1
+bindsym \$mod+2 workspace number 2
+bindsym \$mod+3 workspace number 3
+bindsym \$mod+4 workspace number 4
+bindsym \$mod+Shift+1 move container to workspace number 1
+bindsym \$mod+Shift+2 move container to workspace number 2
+bindsym \$mod+Shift+3 move container to workspace number 3
+bindsym \$mod+Shift+4 move container to workspace number 4
+bindsym \$mod+h focus left
+bindsym \$mod+j focus down
+bindsym \$mod+k focus up
+bindsym \$mod+l focus right
+bindsym \$mod+Shift+h move left
+bindsym \$mod+Shift+j move down
+bindsym \$mod+Shift+k move up
+bindsym \$mod+Shift+l move right
 bar { position top; status_command waybar }
 exec swaybg -i /usr/share/backgrounds/walls/sample.png 2>/dev/null
 SWAYCFG
