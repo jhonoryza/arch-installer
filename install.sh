@@ -219,19 +219,19 @@ pacstrap_base() {
   # UEFI-only packages (efibootmgr for boot entries, dosfstools for FAT32)
   local uefi_pkgs=""
   [[ "$UEFI" -eq 1 ]] && uefi_pkgs="efibootmgr dosfstools"
-  pacstrap "$MOUNT" 
-    base linux linux-firmware base-devel nano grub sudo 
-    reflector 
-    networkmanager network-manager-applet 
-    lightdm lightdm-gtk-greeter 
-    ttf-ubuntu-font-family xcursor-vanilla-dmz 
-    adwaita-icon-theme 
-    iptables mkinitcpio 
-    mesa pciutils xdg-utils 
-    xf86-video-intel xf86-video-amdgpu xf86-video-ati xf86-video-nouveau 
-    vlc 
-    nvim vim 
-    $uefi_pkgs 
+  pacstrap "$MOUNT" \
+    base linux linux-firmware base-devel nano grub sudo \
+    reflector \
+    networkmanager network-manager-applet \
+    lightdm lightdm-gtk-greeter \
+    ttf-ubuntu-font-family xcursor-vanilla-dmz \
+    adwaita-icon-theme \
+    iptables mkinitcpio \
+    mesa pciutils xdg-utils \
+    xf86-video-intel xf86-video-amdgpu xf86-video-ati xf86-video-nouveau \
+    vlc \
+    nvim vim \
+    $uefi_pkgs \
     --noconfirm
   log "Base system installed"
 }
