@@ -16,9 +16,9 @@ KEYMAP="us"
 HOSTNAME="arch-ubuntu"
 TIMEZONE="Asia/Jakarta"
 
-log()  { echo -e "\033[1;32m[*]\033[0m $*"; }
-warn() { echo -e "\033[1;33m[!]\033[0m $*"; }
-die()  { echo -e "\033[1;31m[✗]\033[0m $*"; exit 1; }
+log()  { echo -e "033[1;32m[*]033[0m $*"; }
+warn() { echo -e "033[1;33m[!]033[0m $*"; }
+die()  { echo -e "033[1;31m[✗]033[0m $*"; exit 1; }
 
 # Partition suffix: NVMe/MMC → p1,  SATA/VirtIO → 1
 part1() { local d="$1"; [[ "$d" =~ /nvme[0-9]+n[0-9]+$ || "$d" =~ /mmcblk[0-9]+$ ]] && echo "${d}p1" || echo "${d}1"; }
@@ -219,19 +219,19 @@ pacstrap_base() {
   # UEFI-only packages (efibootmgr for boot entries, dosfstools for FAT32)
   local uefi_pkgs=""
   [[ "$UEFI" -eq 1 ]] && uefi_pkgs="efibootmgr dosfstools"
-  pacstrap "$MOUNT" \
-    base linux linux-firmware base-devel nano grub sudo \
-    reflector \
-    networkmanager network-manager-applet \
-    lightdm lightdm-gtk-greeter \
-    ttf-ubuntu-font-family xcursor-vanilla-dmz \
-    adwaita-icon-theme \
-    iptables mkinitcpio \
-    mesa pciutils xdg-utils \
-    xf86-video-intel xf86-video-amdgpu xf86-video-ati xf86-video-nouveau \
-    vlc \
-    nvim vim \
-    $uefi_pkgs \
+  pacstrap "$MOUNT" 
+    base linux linux-firmware base-devel nano grub sudo 
+    reflector 
+    networkmanager network-manager-applet 
+    lightdm lightdm-gtk-greeter 
+    ttf-ubuntu-font-family xcursor-vanilla-dmz 
+    adwaita-icon-theme 
+    iptables mkinitcpio 
+    mesa pciutils xdg-utils 
+    xf86-video-intel xf86-video-amdgpu xf86-video-ati xf86-video-nouveau 
+    vlc 
+    nvim vim 
+    $uefi_pkgs 
     --noconfirm
   log "Base system installed"
 }
@@ -261,10 +261,10 @@ SCRIPTEOF
 
 chroot_configure() {
   log "Entering chroot for system configuration..."
-  arch-chroot "$MOUNT" env ROOT_PASS="$ROOT_PASS" PASSWORD="$PASSWORD" DISK="$DISK" \
-  INSTALL_MATE="$INSTALL_MATE" INSTALL_HYPR="$INSTALL_HYPR" \
-  INSTALL_SWAY="$INSTALL_SWAY" DEFAULT_DE="$DEFAULT_DE" \
-  bash << INCHROOT
+  arch-chroot "$MOUNT" env ROOT_PASS="$ROOT_PASS" PASSWORD="$PASSWORD" DISK="$DISK" 
+  INSTALL_MATE="$INSTALL_MATE" INSTALL_HYPR="$INSTALL_HYPR" 
+  INSTALL_SWAY="$INSTALL_SWAY" DEFAULT_DE="$DEFAULT_DE" 
+  bash << 'INCHROOT'
 set -e
 
 echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
@@ -358,32 +358,32 @@ if [ "$INSTALL_SWAY" -eq 1 ]; then
     cp /etc/sway/config /home/mateuser/.config/sway/config
   else
     cat > /home/mateuser/.config/sway/config << 'SWAYCFG'
-set \$mod Mod4
+set $mod Mod4
 font pango:monospace 10
-set \$term foot
-bindsym \$mod+Return exec \$term
-bindsym \$mod+q kill
-bindsym \$mod+d exec wofi --show drun
-bindsym \$mod+r exec wofi --show run
-bindsym \$mod+v floating toggle
-bindsym \$mod+f fullscreen
-bindsym \$mod+Shift+e exit
-bindsym \$mod+1 workspace number 1
-bindsym \$mod+2 workspace number 2
-bindsym \$mod+3 workspace number 3
-bindsym \$mod+4 workspace number 4
-bindsym \$mod+Shift+1 move container to workspace number 1
-bindsym \$mod+Shift+2 move container to workspace number 2
-bindsym \$mod+Shift+3 move container to workspace number 3
-bindsym \$mod+Shift+4 move container to workspace number 4
-bindsym \$mod+h focus left
-bindsym \$mod+j focus down
-bindsym \$mod+k focus up
-bindsym \$mod+l focus right
-bindsym \$mod+Shift+h move left
-bindsym \$mod+Shift+j move down
-bindsym \$mod+Shift+k move up
-bindsym \$mod+Shift+l move right
+set $term foot
+bindsym $mod+Return exec $term
+bindsym $mod+q kill
+bindsym $mod+d exec wofi --show drun
+bindsym $mod+r exec wofi --show run
+bindsym $mod+v floating toggle
+bindsym $mod+f fullscreen
+bindsym $mod+Shift+e exit
+bindsym $mod+1 workspace number 1
+bindsym $mod+2 workspace number 2
+bindsym $mod+3 workspace number 3
+bindsym $mod+4 workspace number 4
+bindsym $mod+Shift+1 move container to workspace number 1
+bindsym $mod+Shift+2 move container to workspace number 2
+bindsym $mod+Shift+3 move container to workspace number 3
+bindsym $mod+Shift+4 move container to workspace number 4
+bindsym $mod+h focus left
+bindsym $mod+j focus down
+bindsym $mod+k focus up
+bindsym $mod+l focus right
+bindsym $mod+Shift+h move left
+bindsym $mod+Shift+j move down
+bindsym $mod+Shift+k move up
+bindsym $mod+Shift+l move right
 bar { position top; status_command waybar }
 exec swaybg -i /usr/share/backgrounds/walls/sample.png 2>/dev/null
 SWAYCFG
@@ -489,11 +489,11 @@ dbus-run-session bash -c '
   TERM_PROF=$(gsettings get org.mate.terminal.global default-profile 2>/dev/null)
   TERM_PROF=$(echo "$TERM_PROF" | tr -dc "[:alnum:]_-")
   if [ -n "$TERM_PROF" ]; then
-    gsettings set "org.mate.terminal.profile:/org/mate/terminal/profiles/$TERM_PROF/" \
+    gsettings set "org.mate.terminal.profile:/org/mate/terminal/profiles/$TERM_PROF/" 
       background-color "#300A24"
-    gsettings set "org.mate.terminal.profile:/org/mate/terminal/profiles/$TERM_PROF/" \
+    gsettings set "org.mate.terminal.profile:/org/mate/terminal/profiles/$TERM_PROF/" 
       foreground-color "#FFFFFF"
-    gsettings set "org.mate.terminal.profile:/org/mate/terminal/profiles/$TERM_PROF/" \
+    gsettings set "org.mate.terminal.profile:/org/mate/terminal/profiles/$TERM_PROF/" 
       use-theme-colors false
   fi
 ' 2>/dev/null || true
@@ -610,8 +610,8 @@ build_pkg brave-bin
 
 # palemoon-bin — AUR package is flagged out-of-date (34.1.0);
 # bump to 34.3.1 (latest) so the mirror URL resolves.
-build_pkg_patched palemoon-bin \
-  "sed -i 's/34\\.1\\.0/34.3.1/g' PKGBUILD"
+build_pkg_patched palemoon-bin 
+  "sed -i 's/34.1.0/34.3.1/g' PKGBUILD"
 
 # sublime-text-4 (replaces deleted 'sublime-text'; Provides: sublime-text)
 build_pkg sublime-text-4
@@ -685,10 +685,10 @@ install_devtools() {
   arch-chroot "$MOUNT" bash << 'DEVTOOLS1'
 set -e
 echo "=== Installing system dev packages ==="
-pacman -S --noconfirm \
-  go cmake deno scrcpy php jdk-openjdk \
-  nodejs npm rustup btop nvtop tmux \
-  docker docker-compose postgresql mariadb-clients \
+pacman -S --noconfirm 
+  go cmake deno scrcpy php jdk-openjdk 
+  nodejs npm rustup btop nvtop tmux 
+  docker docker-compose postgresql mariadb-clients 
   bitwarden-cli
 
 # Sublime Merge (Git GUI from Sublime HQ)
@@ -708,7 +708,7 @@ REPO
 
 # MinIO client (mc) — direct binary download
 echo ">>> Installing MinIO client (mc)..."
-curl -fsSL https://dl.min.io/client/mc/release/linux-amd64/mc \
+curl -fsSL https://dl.min.io/client/mc/release/linux-amd64/mc 
   -o /usr/local/bin/mc 2>/dev/null && {
   chmod +x /usr/local/bin/mc
   echo "  -> mc OK"
@@ -723,7 +723,7 @@ echo ">>> Docker setup done"
 # Wallpaper collection (dharmx/walls)
 echo ">>> Cloning wallpaper collection..."
 mkdir -p /usr/share/backgrounds
-git clone --depth 1 https://github.com/dharmx/walls.git \
+git clone --depth 1 https://github.com/dharmx/walls.git 
   /usr/share/backgrounds/walls 2>/dev/null && echo "  -> walls OK" || echo "  SKIP: walls"
 
 echo "=== System dev packages done ==="
@@ -833,7 +833,7 @@ main() {
   if [[ "$UEFI" -eq 1 ]]; then
     # UEFI: install GRUB for x86_64-efi, ESP at /boot/efi
     log "Installing GRUB (UEFI/x86_64-efi)..."
-    arch-chroot "$MOUNT" grub-install --target=x86_64-efi \
+    arch-chroot "$MOUNT" grub-install --target=x86_64-efi 
       --efi-directory=/boot/efi --bootloader-id=GRUB
   else
     # BIOS/Legacy: install GRUB for i386-pc (MBR)
