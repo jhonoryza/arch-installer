@@ -261,10 +261,10 @@ SCRIPTEOF
 
 chroot_configure() {
   log "Entering chroot for system configuration..."
-  arch-chroot "$MOUNT" env ROOT_PASS="$ROOT_PASS" PASSWORD="$PASSWORD" DISK="$DISK" 
-  INSTALL_MATE="$INSTALL_MATE" INSTALL_HYPR="$INSTALL_HYPR" 
-  INSTALL_SWAY="$INSTALL_SWAY" DEFAULT_DE="$DEFAULT_DE" 
-  bash << 'INCHROOT'
+  arch-chroot "$MOUNT" env ROOT_PASS="$ROOT_PASS" PASSWORD="$PASSWORD" DISK="$DISK" \
+    INSTALL_MATE="$INSTALL_MATE" INSTALL_HYPR="$INSTALL_HYPR" \
+    INSTALL_SWAY="$INSTALL_SWAY" DEFAULT_DE="$DEFAULT_DE" \
+    bash << 'INCHROOT'
 set -e
 
 echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
@@ -708,7 +708,7 @@ REPO
 
 # MinIO client (mc) — direct binary download
 echo ">>> Installing MinIO client (mc)..."
-curl -fsSL https://dl.min.io/client/mc/release/linux-amd64/mc 
+curl -fsSL https://dl.min.io/client/mc/release/linux-amd64/mc \
   -o /usr/local/bin/mc 2>/dev/null && {
   chmod +x /usr/local/bin/mc
   echo "  -> mc OK"
@@ -833,7 +833,7 @@ main() {
   if [[ "$UEFI" -eq 1 ]]; then
     # UEFI: install GRUB for x86_64-efi, ESP at /boot/efi
     log "Installing GRUB (UEFI/x86_64-efi)..."
-    arch-chroot "$MOUNT" grub-install --target=x86_64-efi 
+    arch-chroot "$MOUNT" grub-install --target=x86_64-efi \
       --efi-directory=/boot/efi --bootloader-id=GRUB
   else
     # BIOS/Legacy: install GRUB for i386-pc (MBR)
