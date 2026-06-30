@@ -35,6 +35,57 @@ detect_boot_mode() {
   fi
 }
 
+# ── Desktop environment selection ──────────────────────────────────
+select_desktops() {
+  echo
+  warn "Select desktop environments to install:"
+  echo "  1. MATE     (Ubuntu 10.10 custom theme)"
+  echo "  2. Hyprland (modern dynamic tiling Wayland)"
+  echo "  3. Sway     (i3-compatible tiling Wayland)"
+  echo
+  read -rp "Enter space-separated numbers [default: 1]: " DESKTOP_CHOICES
+  DESKTOP_CHOICES="${DESKTOP_CHOICES:-1}"
+
+  # Reset flags
+  INSTALL_MATE=0 INSTALL_HYPR=0 INSTALL_SWAY=0
+  for c in $DESKTOP_CHOICES; do
+    case "$c" in
+      1) INSTALL_MATE=1 ;;
+      2) INSTALL_HYPR=1 ;;
+      3) INSTALL_SWAY=1 ;;
+      *) warn "Unknown option: $c — skipping" ;;
+    esac
+  done
+
+  # At least one DE required
+  if (( INSTALL_MATE + INSTALL_HYPR + INSTALL_SWAY == 0 )); then
+    die "At least one desktop environment must be selected"
+  fi
+
+  # Show selected DEs
+  echo
+  log "Selected DEs:"
+  (( INSTALL_MATE )) && echo "  - MATE"
+  (( INSTALL_HYPR )) && echo "  - Hyprland"
+  (( INSTALL_SWAY )) && echo "  - Sway"
+
+  # Default session
+  echo
+  read -rp "Which should be the default? [mate/hyprland/sway]: " DEFAULT_DE
+  DEFAULT_DE="${DEFAULT_DE:-mate}"
+
+  # Validate default
+  case "$DEFAULT_DE" in
+    mate)     (( INSTALL_MATE )) || die "MATE not selected!" ;;
+    hyprland) (( INSTALL_HYPR )) || die "Hyprland not selected!" ;;
+    sway)     (( INSTALL_SWAY )) || die "Sway not selected!" ;;
+    *) die "Invalid default: $DEFAULT_DE (use mate, hyprland, or sway)" ;;
+  esac
+
+  log "Default session: $DEFAULT_DE"
+  export INSTALL_MATE INSTALL_HYPR INSTALL_SWAY DEFAULT_DE
+}
+
 checks() {
   [[ $EUID -eq 0 ]] || die "Must run as root"
   command -v pacstrap &>/dev/null || die "Not an Arch live ISO (no pacstrap)"
@@ -210,7 +261,10 @@ SCRIPTEOF
 
 chroot_configure() {
   log "Entering chroot for system configuration..."
-  arch-chroot "$MOUNT" env ROOT_PASS="$ROOT_PASS" PASSWORD="$PASSWORD" DISK="$DISK" bash << INCHROOT
+  arch-chroot "$MOUNT" env ROOT_PASS="$ROOT_PASS" PASSWORD="$PASSWORD" DISK="$DISK" \
+  INSTALL_MATE="$INSTALL_MATE" INSTALL_HYPR="$INSTALL_HYPR" \
+  INSTALL_SWAY="$INSTALL_SWAY" DEFAULT_DE="$DEFAULT_DE" \
+  bash << INCHROOT
 set -e
 
 echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
@@ -240,10 +294,103 @@ echo "mateuser:$PASSWORD" | chpasswd
 echo "mateuser ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/mateuser
 chmod 0440 /etc/sudoers.d/mateuser
 
-# Desktop groups (installed here to avoid interactive prompts during pacstrap)
-pacman -S --noconfirm xorg-server xorg-xinit xorg-xset xdg-utils pciutils mime-types 2>&1 | tail -3 || true
-pacman -S --noconfirm mate 2>&1 | tail -3 || true
-pacman -S --noconfirm mate-extra 2>&1 | tail -3 || true
+# ── Desktop Environments ──────────────────────────────────────────
+# Xorg (needed by MATE)
+if [ "$INSTALL_MATE" -eq 1 ]; then
+  echo ">>> Installing Xorg + MATE..."
+  pacman -S --noconfirm xorg-server xorg-xinit xorg-xset xdg-utils pciutils mime-types 2>&1 | tail -3 || true
+  pacman -S --noconfirm mate 2>&1 | tail -3 || true
+  pacman -S --noconfirm mate-extra 2>&1 | tail -3 || true
+fi
+
+# Hyprland (Wayland)
+if [ "$INSTALL_HYPR" -eq 1 ]; then
+  echo ">>> Installing Hyprland..."
+  pacman -S --noconfirm hyprland kitty waybar wofi dunst swaybg 2>&1 | tail -3 || true
+fi
+
+# Sway (Wayland)
+if [ "$INSTALL_SWAY" -eq 1 ]; then
+  echo ">>> Installing Sway..."
+  pacman -S --noconfirm sway foot waybar wofi dunst swaybg 2>&1 | tail -3 || true
+fi
+
+# Hyprland config
+if [ "$INSTALL_HYPR" -eq 1 ]; then
+  echo ">>> Writing Hyprland config..."
+  mkdir -p /home/mateuser/.config/hypr
+  cat > /home/mateuser/.config/hypr/hyprland.conf << 'HYPRCFG'
+monitor=,preferred,auto,1
+exec-once=waybar & swaybg -i /usr/share/backgrounds/walls/sample.png 2>/dev/null &
+input {
+    kb_layout=us
+    follow_mouse=1
+}
+general {
+    gaps_in=5
+    gaps_out=10
+    border_size=2
+    col.active_border=rgba(ff6600ee)
+    col.inactive_border=rgba(595959aa)
+}
+decoration { rounding=8 }
+bind=SUPER,RETURN,exec,kitty
+bind=SUPER,Q,killactive
+bind=SUPER,M,exit
+bind=SUPER,E,exec,wofi --show drun
+bind=SUPER,R,exec,wofi --show run
+bind=SUPER,V,togglefloating
+bind=SUPER,F,fullscreen
+bind=SUPER,1,workspace,1
+bind=SUPER,2,workspace,2
+bind=SUPER,3,workspace,3
+bind=SUPER,4,workspace,4
+HYPRCFG
+  chown -R mateuser:mateuser /home/mateuser/.config/hypr
+fi
+
+# Sway config
+if [ "$INSTALL_SWAY" -eq 1 ]; then
+  echo ">>> Writing Sway config..."
+  mkdir -p /home/mateuser/.config/sway
+  # Copy default config as base, then customize
+  if [ -f /etc/sway/config ]; then
+    cp /etc/sway/config /home/mateuser/.config/sway/config
+  else
+    cat > /home/mateuser/.config/sway/config << 'SWAYCFG'
+set $mod Mod4
+font pango:monospace 10
+set $term foot
+bindsym $mod+Return exec $term
+bindsym $mod+q kill
+bindsym $mod+d exec wofi --show drun
+bindsym $mod+r exec wofi --show run
+bindsym $mod+v floating toggle
+bindsym $mod+f fullscreen
+bindsym $mod+Shift+e exit
+bindsym $mod+1 workspace number 1
+bindsym $mod+2 workspace number 2
+bindsym $mod+3 workspace number 3
+bindsym $mod+4 workspace number 4
+bindsym $mod+Shift+1 move container to workspace number 1
+bindsym $mod+Shift+2 move container to workspace number 2
+bindsym $mod+Shift+3 move container to workspace number 3
+bindsym $mod+Shift+4 move container to workspace number 4
+bindsym $mod+h focus left
+bindsym $mod+j focus down
+bindsym $mod+k focus up
+bindsym $mod+l focus right
+bindsym $mod+Shift+h move left
+bindsym $mod+Shift+j move down
+bindsym $mod+Shift+k move up
+bindsym $mod+Shift+l move right
+bar { position top; status_command waybar }
+exec swaybg -i /usr/share/backgrounds/walls/sample.png 2>/dev/null
+SWAYCFG
+  fi
+  chown -R mateuser:mateuser /home/mateuser/.config/sway
+fi
+echo ">>> Desktop environments installed"
 
 # Services
 systemctl enable NetworkManager
@@ -255,7 +402,7 @@ mkdir -p /etc/lightdm
 cat > /etc/lightdm/lightdm.conf << LIGHTDM
 [Seat:*]
 greeter-session=lightdm-gtk-greeter
-user-session=mate
+user-session=${DEFAULT_DE}
 autologin-user=mateuser
 autologin-user-timeout=0
 session-wrapper=/etc/lightdm/Xsession
@@ -668,6 +815,7 @@ cleanup() {
 
 main() {
   checks
+  select_desktops
   detect_boot_mode
   select_disk
   partition_disk
