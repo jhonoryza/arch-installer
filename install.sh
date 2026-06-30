@@ -22,6 +22,18 @@ die()  { echo -e "\033[1;31m[✗]\033[0m $*"; exit 1; }
 
 # Partition suffix: NVMe/MMC → p1,  SATA/VirtIO → 1
 part1() { local d="$1"; [[ "$d" =~ /nvme[0-9]+n[0-9]+$ || "$d" =~ /mmcblk[0-9]+$ ]] && echo "${d}p1" || echo "${d}1"; }
+part2() { local d="$1"; [[ "$d" =~ /nvme[0-9]+n[0-9]+$ || "$d" =~ /mmcblk[0-9]+$ ]] && echo "${d}p2" || echo "${d}2"; }
+
+# Detect boot mode: UEFI if /sys/firmware/efi/efivars exists, else BIOS/Legacy
+detect_boot_mode() {
+  if [[ -d /sys/firmware/efi/efivars ]]; then
+    UEFI=1
+    log "Boot mode: UEFI (GPT + EFI System Partition)"
+  else
+    UEFI=0
+    log "Boot mode: BIOS/Legacy (MBR)"
+  fi
+}
 
 checks() {
   [[ $EUID -eq 0 ]] || die "Must run as root"
@@ -67,35 +79,83 @@ select_disk() {
 partition_disk() {
   log "Partitioning $DISK (full disk)"
   # Unmount any leftover mounts
+  umount "$MOUNT/boot/efi" 2>/dev/null || true
+  umount "$MOUNT/boot" 2>/dev/null || true
   umount "$(part1 "$DISK")" 2>/dev/null || true
+  umount "$(part2 "$DISK")" 2>/dev/null || true
   umount "$MOUNT" 2>/dev/null || true
-  # Use fdisk (MBR)
-  (
-    echo "o"
-    echo "n"
-    echo "p"
-    echo "1"
-    echo ""
-    echo ""
-    echo "w"
-  ) | fdisk "$DISK"
-  sleep 3
-  partprobe "$DISK" 2>/dev/null || true
-  sleep 2
-  # Wait for partition node to appear
-  for i in $(seq 1 10); do
-    [[ -b "$(part1 "$DISK")" ]] && break
-    sleep 1
-  done
-  [[ -b "$(part1 "$DISK")" ]] || die "Partition $(part1 "$DISK") not found"
-  mkfs.ext4 -F -L archroot "$(part1 "$DISK")"
-  log "Partition $(part1 "$DISK") created and formatted"
+
+  if [[ "$UEFI" -eq 1 ]]; then
+    # ── UEFI: GPT with EFI System Partition (FAT32) + root (ext4) ──
+    log "Creating GPT partition table with EFI System Partition"
+    (
+      echo "g"           # create new GPT partition table
+      echo "n"           # new partition
+      echo "1"           # partition 1 (ESP)
+      echo ""            # default start
+      echo "+512M"       # 512MB for ESP
+      echo "t"           # change type
+      echo "1"           # EFI System type
+      echo "n"           # new partition
+      echo "2"           # partition 2 (root)
+      echo ""            # default start
+      echo ""            # rest of disk
+      echo "w"           # write
+    ) | fdisk "$DISK"
+    sleep 3
+    partprobe "$DISK" 2>/dev/null || true
+    sleep 2
+    # Wait for partition nodes to appear
+    for i in $(seq 1 10); do
+      [[ -b "$(part1 "$DISK")" && -b "$(part2 "$DISK")" ]] && break
+      sleep 1
+    done
+    [[ -b "$(part1 "$DISK")" ]] || die "ESP partition $(part1 "$DISK") not found"
+    [[ -b "$(part2 "$DISK")" ]] || die "Root partition $(part2 "$DISK") not found"
+    # Format: ESP as FAT32, root as ext4
+    mkfs.fat -F32 -n EFIBOOT "$(part1 "$DISK")"
+    mkfs.ext4 -F -L archroot "$(part2 "$DISK")"
+    log "ESP $(part1 "$DISK") (FAT32) + root $(part2 "$DISK") (ext4) created"
+  else
+    # ── BIOS/Legacy: MBR with single root partition ──
+    log "Creating MBR partition table (BIOS/Legacy)"
+    (
+      echo "o"           # create new DOS/MBR partition table
+      echo "n"           # new partition
+      echo "p"           # primary
+      echo "1"           # partition 1
+      echo ""            # default start
+      echo ""            # rest of disk
+      echo "w"           # write
+    ) | fdisk "$DISK"
+    sleep 3
+    partprobe "$DISK" 2>/dev/null || true
+    sleep 2
+    # Wait for partition node to appear
+    for i in $(seq 1 10); do
+      [[ -b "$(part1 "$DISK")" ]] && break
+      sleep 1
+    done
+    [[ -b "$(part1 "$DISK")" ]] || die "Partition $(part1 "$DISK") not found"
+    mkfs.ext4 -F -L archroot "$(part1 "$DISK")"
+    log "Partition $(part1 "$DISK") created and formatted (MBR)"
+  fi
 }
 
 mount_system() {
-  log "Mounting $(part1 "$DISK") -> $MOUNT"
-  mkdir -p "$MOUNT"
-  mount "$(part1 "$DISK")" "$MOUNT"
+  if [[ "$UEFI" -eq 1 ]]; then
+    # UEFI: mount root, then ESP at /boot/efi
+    log "Mounting $(part2 "$DISK") -> $MOUNT, $(part1 "$DISK") -> $MOUNT/boot/efi"
+    mkdir -p "$MOUNT"
+    mount "$(part2 "$DISK")" "$MOUNT"
+    mkdir -p "$MOUNT/boot/efi"
+    mount "$(part1 "$DISK")" "$MOUNT/boot/efi"
+  else
+    # BIOS: single partition
+    log "Mounting $(part1 "$DISK") -> $MOUNT"
+    mkdir -p "$MOUNT"
+    mount "$(part1 "$DISK")" "$MOUNT"
+  fi
   timedatectl set-ntp true
 }
 
@@ -105,6 +165,9 @@ pacstrap_base() {
   pacman -S --noconfirm iptables mkinitcpio pciutils 2>/dev/null || true
   # NOTE: groups (xorg, mate, mate-extra) are installed later in chroot
   # to avoid interactive group-member prompts that --noconfirm does not skip.
+  # UEFI-only packages (efibootmgr for boot entries, dosfstools for FAT32)
+  local uefi_pkgs=""
+  [[ "$UEFI" -eq 1 ]] && uefi_pkgs="efibootmgr dosfstools"
   pacstrap "$MOUNT" \
     base linux linux-firmware base-devel nano grub sudo \
     reflector \
@@ -117,6 +180,7 @@ pacstrap_base() {
     xf86-video-intel xf86-video-amdgpu xf86-video-ati xf86-video-nouveau \
     vlc \
     nvim vim \
+    $uefi_pkgs \
     --noconfirm
   log "Base system installed"
 }
@@ -331,7 +395,7 @@ build_pkg() {
 }
 
 # ── Helper: build with PKGBUILD patching before makepkg ──────────────
-# Patches the PKGBUILD (via sed), then builds with --skipintegrity
+# Patches the PKGBUILD (via sed), then builds with --skipinteg
 # since patching invalidates checksums.
 build_pkg_patched() {
   local name="$1"
@@ -385,9 +449,8 @@ build_pkg_patched palemoon-bin \
 build_pkg sublime-text-4
 
 # ghostty-nightly-bin (replaces deleted 'ghostty-bin'; Provides: ghostty)
-# Must build its two AUR dependencies first.
-build_pkg ghostty-terminfo-nightly-bin
-build_pkg ghostty-shell-integration-nightly-bin
+# This is a split package base: building it also produces ghostty-terminfo
+# and ghostty-shell-integration, so no separate dep builds are needed.
 build_pkg ghostty-nightly-bin
 
 # murrine engine
@@ -451,6 +514,7 @@ cleanup() {
 
 main() {
   checks
+  detect_boot_mode
   select_disk
   partition_disk
   mount_system
@@ -463,8 +527,19 @@ main() {
   mount --bind /dev "$MOUNT/dev"
   mount --bind /proc "$MOUNT/proc"
   mount --bind /sys "$MOUNT/sys"
-  arch-chroot "$MOUNT" grub-install "$DISK" --target=i386-pc
+
+  if [[ "$UEFI" -eq 1 ]]; then
+    # UEFI: install GRUB for x86_64-efi, ESP at /boot/efi
+    log "Installing GRUB (UEFI/x86_64-efi)..."
+    arch-chroot "$MOUNT" grub-install --target=x86_64-efi \
+      --efi-directory=/boot/efi --bootloader-id=GRUB
+  else
+    # BIOS/Legacy: install GRUB for i386-pc (MBR)
+    log "Installing GRUB (BIOS/i386-pc)..."
+    arch-chroot "$MOUNT" grub-install "$DISK" --target=i386-pc
+  fi
   arch-chroot "$MOUNT" grub-mkconfig -o /boot/grub/grub.cfg
+
   umount "$MOUNT/dev" "$MOUNT/proc" "$MOUNT/sys" 2>/dev/null || true
   # Lazy-unmount anything still busy (arch-chroot may leave /proc, /sys active)
   umount -l "$MOUNT/dev"  2>/dev/null || true
