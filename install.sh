@@ -483,6 +483,9 @@ build_pkg humanity-icon-theme
 # ubuntu-themes (Ambiance & Radiance)
 build_pkg ubuntu-themes
 
+# cloudflare-warp-bin (1.1.1.1 VPN/DNS client)
+build_pkg cloudflare-warp-bin
+
 set -e
 
 echo "=== All AUR packages attempted ==="
@@ -528,6 +531,136 @@ DEFAULTS
   log "Default applications configured"
 }
 
+install_devtools() {
+  log "Installing development tools (go, rust, node, bun, deno, java, php, C/C++, cmake, scrcpy + AI CLI tools)..."
+  
+  # ── 1. System packages via pacman ──
+  arch-chroot "$MOUNT" bash << 'DEVTOOLS1'
+set -e
+echo "=== Installing system dev packages ==="
+pacman -S --noconfirm \
+  go cmake deno scrcpy php jdk-openjdk \
+  nodejs npm rustup btop nvtop tmux \
+  docker docker-compose postgresql mariadb-clients \
+  bitwarden-cli
+
+# Sublime Merge (Git GUI from Sublime HQ)
+echo ">>> Installing Sublime Merge..."
+(
+  cd /tmp
+  curl -fsSLO https://download.sublimetext.com/sublimehq-pub.gpg || exit 1
+  pacman-key --add sublimehq-pub.gpg 2>/dev/null || exit 1
+  pacman-key --lsign-key 8A8F901A 2>/dev/null || exit 1
+  rm -f sublimehq-pub.gpg
+  cat >> /etc/pacman.conf << 'REPO'
+[sublime-text]
+Server = https://download.sublimetext.com/arch/stable/x86_64
+REPO
+  pacman -Sy --noconfirm sublime-merge
+) || echo "  SKIP: sublime-merge"
+
+# MinIO client (mc) — direct binary download
+echo ">>> Installing MinIO client (mc)..."
+curl -fsSL https://dl.min.io/client/mc/release/linux-amd64/mc \
+  -o /usr/local/bin/mc 2>/dev/null && {
+  chmod +x /usr/local/bin/mc
+  echo "  -> mc OK"
+} || echo "  SKIP: mc"
+
+# Docker: enable service, add mateuser to docker group
+echo ">>> Setting up Docker..."
+systemctl enable docker 2>/dev/null || true
+usermod -aG docker mateuser 2>/dev/null || true
+echo ">>> Docker setup done"
+
+# Wallpaper collection (dharmx/walls)
+echo ">>> Cloning wallpaper collection..."
+mkdir -p /usr/share/backgrounds
+git clone --depth 1 https://github.com/dharmx/walls.git \
+  /usr/share/backgrounds/walls 2>/dev/null && echo "  -> walls OK" || echo "  SKIP: walls"
+
+echo "=== System dev packages done ==="
+DEVTOOLS1
+
+  # ── Copy tmux config ──
+  local SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  if [[ -f "${SCRIPT_DIR}/tmux.conf" ]]; then
+    cp "${SCRIPT_DIR}/tmux.conf" "$MOUNT/home/mateuser/.tmux.conf"
+    arch-chroot "$MOUNT" chown mateuser:mateuser /home/mateuser/.tmux.conf
+    log "tmux config copied"
+  else
+    warn "tmux.conf not found — using default tmux config"
+  fi
+
+  # ── 2. User-level tools (curl + npm installers) ──
+  arch-chroot "$MOUNT" su -s /bin/bash mateuser << 'DEVTOOLS2'
+cd ~
+
+# === Node Version Manager (nvm) + Node LTS ===
+echo ">>> Installing nvm..."
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash 2>/dev/null || true
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+nvm install --lts 2>/dev/null || true
+nvm use --lts 2>/dev/null || true
+echo ">>> nvm done"
+
+# === Bun ===
+echo ">>> Installing bun..."
+curl -fsSL https://bun.sh/install | bash 2>/dev/null || echo "  SKIP: bun"
+echo ">>> bun done"
+
+# === Rust stable toolchain ===
+echo ">>> Installing Rust stable..."
+rustup toolchain install stable 2>/dev/null || true
+rustup default stable 2>/dev/null || true
+echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> ~/.bashrc
+echo ">>> Rust done"
+
+# === npm global CLI tools ===
+echo ">>> Installing wrangler (Cloudflare)..."
+npm install -g wrangler 2>/dev/null && echo "  OK" || echo "  SKIP"
+
+echo ">>> Installing netlify-cli..."
+npm install -g netlify-cli 2>/dev/null && echo "  OK" || echo "  SKIP"
+
+echo ">>> Installing Claude Code (large ~400MB)..."
+npm install -g @anthropic-ai/claude-code 2>/dev/null && echo "  OK" || echo "  SKIP"
+
+echo ">>> Installing Cline CLI..."
+npm install -g cline 2>/dev/null && echo "  OK" || echo "  SKIP"
+
+echo ">>> Installing Freebuff..."
+npm install -g freebuff 2>/dev/null && echo "  OK" || echo "  SKIP"
+
+echo ">>> Installing Mimo..."
+npm install -g @mimo-ai/cli 2>/dev/null && echo "  OK" || echo "  SKIP"
+echo ">>> npm globals done"
+
+# === Curl/bash installer tools ===
+echo ">>> Installing OpenCode..."
+curl -fsSL https://opencode.ai/install | bash 2>/dev/null || echo "  SKIP"
+
+echo ">>> Installing Antigravity..."
+curl -fsSL https://antigravity.google/cli/install.sh | bash 2>/dev/null || echo "  SKIP"
+
+echo ">>> Installing Kimchi..."
+curl -fsSL https://github.com/getkimchi/kimchi/releases/latest/download/install.sh | bash 2>/dev/null || echo "  SKIP"
+
+# === nvim config (jhonoryza) ===
+echo ">>> Installing nvim config..."
+if [ -d ~/.config/nvim ]; then
+  echo "  SKIP: ~/.config/nvim already exists"
+else
+  git clone https://github.com/jhonoryza/nvim.git ~/.config/nvim 2>/dev/null && echo "  OK" || echo "  SKIP: clone failed"
+fi
+
+echo "=== All dev tools attempted ==="
+DEVTOOLS2
+
+  log "Development tools installation finished"
+}
+
 cleanup() {
   log "Final disk usage:"
   df -h "$MOUNT" | tail -1
@@ -570,6 +703,7 @@ main() {
 
   build_aur
   configure_default_apps
+  install_devtools
   cleanup
 
   log "=========================================="
