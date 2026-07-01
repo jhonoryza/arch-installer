@@ -417,7 +417,7 @@ cursor-theme-name = Vanilla-DMZ
 GREETER
 
 # Theme config for mateuser
-su -s /bin/bash mateuser << USERCFG
+su -s /bin/bash mateuser << 'USERCFG'
 mkdir -p ~/.config/gtk-3.0
 
 cat > ~/.config/gtk-3.0/settings.ini << GTK3
@@ -685,10 +685,10 @@ install_devtools() {
   arch-chroot "$MOUNT" bash << 'DEVTOOLS1'
 set -e
 echo "=== Installing system dev packages ==="
-pacman -S --noconfirm 
-  go cmake deno scrcpy php jdk-openjdk 
-  nodejs npm rustup btop nvtop tmux 
-  docker docker-compose postgresql mariadb-clients 
+pacman -S --noconfirm \
+  go cmake deno scrcpy php jdk-openjdk \
+  nodejs npm rustup btop nvtop tmux \
+  docker docker-compose postgresql mariadb-clients \
   bitwarden-cli
 
 # Sublime Merge (Git GUI from Sublime HQ)
